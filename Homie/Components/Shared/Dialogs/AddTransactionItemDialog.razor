@@ -1,0 +1,67 @@
+@namespace Homie.Components.Shared
+
+@inject IDbService DbService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form" Spacing="3">
+            <MudTextField @bind-Value="_newItem.Title" Label="@($"{FinanceItemType.Title} Name")" Required />
+            <MudNumericField @bind-Value="_newItem.Amount" Label="Amount" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.AttachMoney" Min="0" Required HideSpinButtons/>
+            <MudDateRangePicker @bind-DateRange="_newItem.DateRange" Label="Date Range" Required Clearable Editable />
+            <MudSelect @bind-Value="_newItem.Frequency" Label="Frequency" Required>
+                @foreach (var frequency in Frequencies.All)
+                {
+                    <MudSelectItem Value="frequency.Value">@frequency.Value</MudSelectItem>
+                }
+            </MudSelect>
+            <MudTextField @bind-Value="_newItem.Description" Label="Description" Lines="4" MaxLines="8" Clearable />
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Dialog.Cancel">Cancel</MudButton>
+        <MudButton OnClick="OnAddItem" Color="Color.Primary" Variant="Variant.Filled">Add @FinanceItemType.Title</MudButton>
+    </DialogActions>
+</MudDialog>
+
+
+@code {
+
+    [CascadingParameter]
+    private IMudDialogInstance Dialog { get; set; }
+
+    [Parameter]
+    public FinanceItemType FinanceItemType { get; set; } = FinanceItemTypes.Income;
+
+    private MudForm _form;
+    private Finances.FinanceItem _newItem;
+
+    protected override void OnInitialized()
+    {
+        _newItem = new()
+        {
+            Title = string.Empty,
+            Type = FinanceItemType.Type,
+            DateRange = new(),
+        };
+    }
+
+    private async Task OnAddItem()
+    {
+        await _form.Validate();
+        if (!_form.IsValid) return;
+
+        try
+        {
+            await DbService.AddFinanceItemAsync(_newItem);
+            Snackbar.Add($"{_newItem.Title} was added", Severity.Success);
+            Dialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception e)
+        {
+            Snackbar.Add($"{_newItem.Title} could not be added", Severity.Error);
+        }
+
+    }
+
+}

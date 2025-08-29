@@ -1,0 +1,66 @@
+﻿@inherits LayoutComponentBase
+
+<MudThemeProvider Theme="_theme" IsDarkMode />
+<MudPopoverProvider />
+<MudDialogProvider MaxWidth="MaxWidth.Small" FullWidth="true" BackdropClick="false" CloseOnEscapeKey="true" />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="0" Dense>
+        <MudSpacer />
+        
+        <MudHidden Breakpoint="Breakpoint.MdAndDown" Invert>
+            <MudButtonGroup OverrideStyles="false">
+                <MudIconButton Icon="@Icons.Material.Filled.Menu" OnClick="_ => _miniDrawerOpen = !_miniDrawerOpen" Ripple="false" Size="Size.Small" />
+            </MudButtonGroup>
+        </MudHidden>
+    </MudAppBar>
+    
+    <MudHidden Breakpoint="Breakpoint.MdAndDown" Invert>
+        <MudDrawer Class="ma-1" @bind-Open="_miniDrawerOpen" ClipMode="DrawerClipMode.Always" Elevation="0" Width="300px" Anchor="Anchor.Right">
+            <NavMenu />
+        </MudDrawer>
+    </MudHidden>
+    <MudHidden Breakpoint="Breakpoint.LgAndUp" Invert>
+        <MudDrawer Class="ma-1" @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="0" Width="200px">
+            <NavMenu />
+        </MudDrawer>
+    </MudHidden>
+    <MudMainContent>
+        <MudPaper Class="ma-2 py-2 px-4" Style="background-color: #111111" MinHeight="92vh">
+            @Body
+        </MudPaper>
+    </MudMainContent>
+</MudLayout>
+
+<div id="blazor-error-ui" data-nosnippet>
+    An unhandled error has occurred.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">🗙</span>
+</div>
+
+
+@code {
+    
+    private bool _drawerOpen = true;
+    private bool _miniDrawerOpen;
+
+    private MudTheme _theme = new MudTheme()
+    {
+        PaletteDark = new()
+        {
+            Surface = "#191919",
+            Background = "#191919",
+            DrawerBackground = "#191919",
+            DrawerText = "#E0E0E0",
+            DrawerIcon = "#E0E0E0",
+            AppbarBackground = "#111111",
+        },
+        LayoutProperties = new LayoutProperties()
+        {
+            DefaultBorderRadius = "10px",
+            AppbarHeight = "45px",
+        }
+    };
+
+}

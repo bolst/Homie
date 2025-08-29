@@ -1,0 +1,138 @@
+﻿@typeparam T
+
+<div>
+    <MudAutocomplete @ref="_mudAutocomplete"
+                     T="T"
+                     Value="_value"
+                     ValueChanged="AddItem"
+                     @bind-Text="_query"
+                     SearchFunc="SearchFunc"
+                     Label="@Label"
+                     ToStringFunc="ToStringFunc"
+                     AfterItemsTemplate="CustomItemRF"
+                     NoItemsTemplate="CustomItemRF"
+                     Dense
+                     ShowProgressIndicator
+                     CoerceValue
+                     Immediate
+                     Clearable>
+    </MudAutocomplete>
+
+    @foreach (var val in _selectedItems)
+    {
+        <MudChip T="T" Value="val" Text="@ToStringFunc(val)" OnClose="OnChipDeselect" Size="Size.Small" Style="@ChipStyleFunc(val)" Variant="Variant.Text" />
+    }
+</div>
+
+@code {
+
+    [Parameter, EditorRequired]
+    public Func<string, CancellationToken, Task<IEnumerable<T>>> SearchFunc { get; set; }
+
+    [Parameter]
+    public HashSet<T> SelectedItems { get; set; }
+
+    [Parameter]
+    public EventCallback<HashSet<T>> SelectedItemsChanged { get; set; }
+
+    [Parameter]
+    public string Label { get; set; }
+
+    [Parameter]
+    public Func<T?, string> ToStringFunc { get; set; } = x => x?.ToString() ?? string.Empty;
+
+
+    /// <summary>
+    /// Define this for custom selections.
+    /// Since a user can only input text, the submission for
+    /// a custom <see cref="T"/> must be able to be constructed from a string.
+    /// </summary>
+    [Parameter]
+    public Func<string, T?>? FromStringFunc { get; set; }
+
+    [Parameter]
+    public Func<T, string?> ChipColorFunc { get; set; } = x => null;
+
+
+    private MudAutocomplete<T> _mudAutocomplete;
+
+    private T _value { get; } = default(T);
+    private string _query = string.Empty;
+    private HashSet<T> _selectedItems = new HashSet<T>();
+
+
+    protected override void OnParametersSet()
+    {
+        // if input selection null, clear internal selection
+        if (SelectedItems == null)
+        {
+            _selectedItems.Clear();
+            return;
+        }
+
+        // if input selection != internal selection, update internal
+        if (!SelectedItems.SequenceEqual(_selectedItems))
+        {
+            _selectedItems = SelectedItems.ToHashSet();
+            SelectedItemsChanged.InvokeAsync(SelectedItems);
+        }
+    }
+
+
+    private string ChipStyleFunc(T item)
+    {
+        var color = ChipColorFunc(item) ?? "#594AE2";
+
+        return $"color: {color}; background-color: {color}11";
+    }
+
+
+    private void OnChipDeselect(MudChip<T> chip)
+    {
+        if (_selectedItems.Remove(chip.Value))
+        {
+            SelectedItems = _selectedItems;
+            SelectedItemsChanged.InvokeAsync(SelectedItems);
+        }
+    }
+
+    private async Task AddItem(T item)
+    {
+        if (_selectedItems.Add(item))
+        {
+            SelectedItems = _selectedItems;
+            await SelectedItemsChanged.InvokeAsync(SelectedItems);
+
+            // remove focus and clear input
+            await _mudAutocomplete.BlurAsync();
+            await _mudAutocomplete.ClearAsync();
+        }
+    }
+
+    private Task AddCustomItem()
+    {
+        if (FromStringFunc is null || string.IsNullOrEmpty(_query))
+        {
+            return Task.CompletedTask;
+        }
+
+        // construct item from query string
+        var newItem = FromStringFunc(_query);
+
+        // if null or an item with same label is already selected, do not add
+        if (newItem is null)
+        {
+            // remove focus and clear input
+            return Task.CompletedTask;
+        }
+
+        return AddItem(newItem);
+    }
+
+    private RenderFragment CustomItemRF => (FromStringFunc is null || string.IsNullOrEmpty(_query)) ?
+    @<div /> :
+    @<MudListItem T="T" OnClick="AddCustomItem" Dense="true">
+        <MudText Typo="Typo.body2" Class="gray-text text-darken-1">Add Custom: <MudText Typo="Typo.body2" Color="Color.Dark" Inline><b>@_query</b></MudText></MudText>
+    </MudListItem>;
+
+}

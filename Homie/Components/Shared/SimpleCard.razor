@@ -1,0 +1,54 @@
+@using MudBlazor.Utilities
+
+<MudPaper Class="@Classname" Width="@Width" Height="@Height">
+    @if (!string.IsNullOrEmpty(Title))
+    {
+        <MudText Typo="Typo.caption">@Title</MudText>
+    }
+
+    @if (ChildContent != null)
+    {
+        @ChildContent
+    }
+    else if (!string.IsNullOrEmpty(Value))
+    {
+        <MudText Typo="Typo"><b>@Value</b></MudText>
+    }
+</MudPaper>
+
+@code {
+
+    [Parameter]
+    public string? Title { get; set; }
+    
+    [Parameter]
+    public RenderFragment ChildContent { get; set; }
+    
+    [Parameter]
+    public string? Value { get; set; }
+    
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter]
+    public string Height { get; set; } = "100px";
+
+    [Parameter]
+    public string Width { get; set; } = "100%";
+    
+    [Parameter]
+    public bool Lighten { get; set; }
+
+    [Parameter]
+    public Typo Typo { get; set; } = Typo.h6;
+
+
+    private string Classname => new CssBuilder()
+        .AddClass("pa-4")
+        .AddClass("d-flex flex-column justify-space-between")
+        .AddClass(Class, !string.IsNullOrEmpty(Class))
+        .AddClass("gray darken-4", Lighten)
+        .ToString();
+
+
+}

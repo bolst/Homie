@@ -1,0 +1,64 @@
+@namespace Homie.Components.Shared
+
+@inject IDbService DbService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form" Spacing="3">
+            <MudTextField @bind-Value="Finance.Title" Label="Title" Required />
+            <MudNumericField @bind-Value="Finance.Amount" Label="Amount" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.AttachMoney" Min="0" Required HideSpinButtons/>
+            <MudDateRangePicker @bind-DateRange="Finance.DateRange" Label="Date Range" Required Editable />
+            <MudSelect @bind-Value="Finance.Frequency" Label="Frequency" Required>
+                @foreach (var frequency in Frequencies.All)
+                {
+                    <MudSelectItem Value="frequency.Value">@frequency.Value</MudSelectItem>
+                }
+            </MudSelect>
+            <MudTextField @bind-Value="Finance.Description" Label="Description" Lines="4" MaxLines="8" Clearable />
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Dialog.Cancel">Cancel</MudButton>
+        <MudButton OnClick="OnUpdateItem" Color="Color.Primary" Variant="Variant.Filled">Update @_originalTitle</MudButton>
+    </DialogActions>
+</MudDialog>
+
+
+@code {
+
+    [CascadingParameter]
+    private IMudDialogInstance Dialog { get; set; }
+    
+    [Parameter, EditorRequired]
+    public required Finances.FinanceItem Finance { get; set; }
+
+    private string? _originalTitle;
+    
+    private MudForm _form;
+
+    protected override void OnParametersSet()
+    {
+        _originalTitle ??= Finance.Title;
+        if (Finance.Id == Guid.Empty)
+            Dialog.Cancel();
+    }
+
+    private async Task OnUpdateItem()
+    {
+        await _form.Validate();
+        if (!_form.IsValid) return;
+
+        try
+        {
+            await DbService.UpdateFinanceItemAsync(Finance);
+            Snackbar.Add($"{Finance.Title} was updated", Severity.Success);
+            Dialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception e)
+        {
+            Snackbar.Add($"{Finance.Title} could not be updated", Severity.Error);
+        }
+    }
+
+}

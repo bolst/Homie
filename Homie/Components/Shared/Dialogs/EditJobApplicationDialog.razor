@@ -1,0 +1,85 @@
+@namespace Homie.Components.Shared
+
+@inject IDbService DbService
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form" Spacing="3">
+            <div class="d-flex flex-column justify-start">
+                <MudText Typo="Typo.caption">Status</MudText>
+                <MudChipSet T="string" @bind-SelectedValue="JobApplication.Status" Ripple="false">
+                    @foreach (var status in JobApplicationStatuses.All)
+                    {
+                        if (status == JobApplication.Status)
+                        {
+                            <MudChip T="string" Style="@($"background-color: {status.Color}22; color: {status.Color}")" Text="@status.Status" Label="true"/>
+                        }
+                        else
+                        {
+                            <MudChip T="string" Style="@($"background-color: {status.Color}03; color: {status.Color}")" Text="@status.Status" Label="true"/>
+                        }
+                    }
+                </MudChipSet>
+            </div>
+            <MudTextField @bind-Value="JobApplication.Link" Label="Link" Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.Link" AdornmentColor="Color.Info" OnAdornmentClick="_ => OnLinkClick(JobApplication.Link)" Required/>
+            <MudTextField @bind-Value="JobApplication.Position" Label="Position" Required/>
+            <MudTextField @bind-Value="JobApplication.Company" Label="Company" Required/>
+            <MudTextField @bind-Value="JobApplication.Industry" Label="Industry"/>
+            <MudTextField @bind-Value="JobApplication.Location" Label="Location"/>
+            <MudDatePicker @bind-Date="JobApplication.DatePosted" Label="Posted" Clearable Editable/>
+            <MudDatePicker @bind-Date="JobApplication.DateApplied" Label="Applied" Clearable Editable/>
+            <MudTextField @bind-Value="JobApplication.Notes" Label="Notes" Lines="4" MaxLines="8" Clearable/>
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Dialog.Cancel">Cancel</MudButton>
+        <MudButton OnClick="OnUpdateItem" Color="Color.Primary" Variant="Variant.Filled">Update Job</MudButton>
+    </DialogActions>
+</MudDialog>
+
+
+@code {
+
+    [CascadingParameter]
+    private IMudDialogInstance Dialog { get; set; }
+    
+    [Parameter, EditorRequired]
+    public required Jobs.JobApplication JobApplication { get; set; }
+
+    private MudForm _form;
+
+    protected override void OnParametersSet()
+    {
+        if (JobApplication.Id == Guid.Empty)
+            Dialog.Cancel();
+    }
+
+    private async Task OnUpdateItem()
+    {
+        await _form.Validate();
+        if (!_form.IsValid) return;
+
+        try
+        {
+            await DbService.UpdateJobApplicationAsync(JobApplication);
+            Snackbar.Add($"{JobApplication.Position} ({JobApplication.Company}) was updated", Severity.Success);
+            Dialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception e)
+        {
+            Snackbar.Add($"{JobApplication.Position} ({JobApplication.Company}) could not be updated", Severity.Error);
+        }
+    }
+
+
+    private async Task OnLinkClick(string link)
+    {
+        if (string.IsNullOrEmpty(link))
+            return;
+
+        await JS.InvokeVoidAsync("window.open", link, "_blank");
+    }
+
+}

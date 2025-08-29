@@ -1,0 +1,30 @@
+
+<PageTitle>@Title</PageTitle>
+
+<MudText Class="mb-2" Typo="Typo.subtitle1" Color="Color"><b>@Text</b></MudText>
+
+
+@code {
+
+    [Parameter, EditorRequired] 
+    public required string Text { get; set; }
+    
+    [Parameter]
+    public string? PageTitle { get; set; }
+
+    [Parameter]
+    public Color Color { get; set; } = Color.Default;
+    
+    [Parameter]
+    public string? Icon { get; set; }
+        
+    [Parameter]
+    public Color IconColor { get; set; } = Color.Default;
+
+    [Parameter]
+    public Size Size { get; set; } = Size.Small;
+
+
+    private string Title => PageTitle ?? Text;
+
+}

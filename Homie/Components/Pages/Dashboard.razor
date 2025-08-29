@@ -1,0 +1,210 @@
+﻿@page "/"
+
+@inject IDbService DbService
+
+<div class="d-flex flex-row align-center justify-space-between">
+    <PageHeader Text="Welcome back, Nic" PageTitle="Dashboard - Homie" />
+    <CustomDateRangePicker @bind-DateStart="_dateStart" @bind-DateEnd="_dateEnd" OnClose="x => { _timeSeriesRangeLabel = x; BuildTimeSeries(); }" />
+</div>
+
+@if (_loading)
+{
+    <MudGrid Spacing="3">
+        <MudItem xs="4">
+            <MudSkeleton SkeletonType="SkeletonType.Rectangle" Width="100%" Height="100px" />
+        </MudItem>
+        <MudItem xs="4">
+            <MudSkeleton SkeletonType="SkeletonType.Rectangle" Width="100%" Height="100px" />
+        </MudItem>
+        <MudItem xs="4">
+            <MudSkeleton SkeletonType="SkeletonType.Rectangle" Width="100%" Height="100px" />
+        </MudItem>
+        <MudItem xs="6">
+            <MudSkeleton SkeletonType="SkeletonType.Rectangle" Width="100%" Height="260px" />
+        </MudItem>
+        <MudItem xs="6">
+            <MudSkeleton SkeletonType="SkeletonType.Rectangle" Width="100%" Height="260px" />
+        </MudItem>
+        <MudItem xs="12">
+            <MudSkeleton SkeletonType="SkeletonType.Rectangle" Width="100%" Height="300px" />
+        </MudItem>
+    </MudGrid>
+}
+else
+{
+    <MudGrid Spacing="3">
+        <MudItem xs="4">
+            <MudLink Href="/financials/income">
+                <SimpleCard Title="Income" Value="@(_incomeItems.TotalBetweenDates(_dateStart, _dateEnd).ToString("C"))"/>
+            </MudLink>
+        </MudItem>
+        <MudItem xs="4">
+            <MudLink Href="/financials/expense">
+                <SimpleCard Title="Expenses" Value="@(_expenseItems.TotalBetweenDates(_dateStart, _dateEnd).ToString("C"))"/>
+            </MudLink>
+        </MudItem>
+        <MudItem xs="4">
+            <SimpleCard Title="Balance" Value="@((_incomeItems.TotalBetweenDates(_dateStart, _dateEnd) - _expenseItems.TotalBetweenDates(_dateStart, _dateEnd)).ToString("C"))"/>
+        </MudItem>
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-4 d-flex flex-column justify-space-between" Width="100%" Height="400px">
+                <MudText Typo="Typo.caption">Projection for @_timeSeriesRangeLabel</MudText>
+                <MudChart 
+                    ChartType="ChartType.Line" 
+                    ChartSeries="_timeSeries" 
+                    XAxisLabels="_timeXAxisLabels" 
+                    ChartOptions="@(new ChartOptions { ChartPalette = ["#55B787", "#E35B66"] })" 
+                    Width="100%" 
+                    Height="100%" />
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="12" md="6">
+            <SimpleCard Title="Upcoming Transactions" Height="400px">
+                <MudStack AlignItems="AlignItems.Center" Spacing="3">
+                    @foreach (var item in _upcomingTransactions.Take(4))
+                    {
+                        <MudPaper Class="gray darken-4 pa-4 d-flex flex-row align-center justify-space-between" Height="75px" Width="100%">
+                            <div class="d-flex justify-space-between flex-column" style="width: 6rem;">
+                                <MudText Typo="Typo.caption">@item.ParentItem.Title</MudText>
+                                <MudText Typo="Typo.h6"><b>@item.ParentItem.Amount.ToString("C")</b></MudText>
+                            </div>
+
+                            <MudChip T="string" Text="@(item.OccurrenceDate.ToString("MMMM dd, yyyy"))" Variant="Variant.Text" Color="Color.Info" Label="true"/>
+
+                            @if (item.ParentItem.Type == FinanceItemTypes.Income)
+                            {
+                                <MudIcon Icon="@Icons.Material.Filled.KeyboardArrowUp" Color="Color.Success"/>
+                            }
+                            else if (item.ParentItem.Type == FinanceItemTypes.Expense)
+                            {
+                                <MudIcon Icon="@Icons.Material.Filled.KeyboardArrowDown" Color="Color.Error"/>
+                            }
+                        </MudPaper>
+                    }
+                </MudStack>
+            </SimpleCard>
+        </MudItem>
+        <MudItem xs="12">
+            <SimpleCard Title="Recent Transactions" Height="160px">
+                <MudHidden Breakpoint="Breakpoint.LgAndUp" Invert>
+                    @RecentTransactions(_recentTransactions, 6)
+                </MudHidden>
+                <MudHidden Breakpoint="Breakpoint.Md" Invert>
+                    @RecentTransactions(_recentTransactions, 4)
+                </MudHidden>
+                <MudHidden Breakpoint="Breakpoint.Sm" Invert>
+                    @RecentTransactions(_recentTransactions, 3)
+                </MudHidden>
+                <MudHidden Breakpoint="Breakpoint.Xs" Invert>
+                    @RecentTransactions(_recentTransactions, 2)
+                </MudHidden>
+            </SimpleCard>
+        </MudItem>
+    </MudGrid>
+}
+
+
+@code {
+
+    private bool _loading;
+
+    private IEnumerable<Finances.FinanceItem> _incomeItems = [];
+    private IEnumerable<Finances.FinanceItem> _expenseItems = [];
+
+    private List<Finances.FinanceOccurrence> _recentTransactions = [];
+    private List<Finances.FinanceOccurrence> _upcomingTransactions = [];
+
+    private string _timeSeriesRangeLabel = DateTime.UtcNow.ToString("MMMM yyyy");
+    private List<ChartSeries> _timeSeries = [];
+    private string[] _timeXAxisLabels = [];
+
+    private DateTime _dateStart = new(2025, 08, 01);
+    private DateTime _dateEnd = new(2025, 08, 31);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        _loading = true;
+        StateHasChanged();
+        
+        _incomeItems = (await DbService.GetFinancialsAsync(FinanceItemTypes.Income)).ToList();
+        _expenseItems = (await DbService.GetFinancialsAsync(FinanceItemTypes.Expense)).ToList();
+
+        var _allItems = _incomeItems.Concat(_expenseItems);
+
+        var today = DateTime.UtcNow.AddHours(-4);
+        _recentTransactions = _allItems
+            .SelectMany(x => x.TimeSeries)
+            .Where(x => x.OccurrenceDate <= today)
+            .OrderByDescending(x => x.OccurrenceDate)
+            .ToList();
+
+        _upcomingTransactions = _allItems
+            .SelectMany(x => x.TimeSeries)
+            .Where(x => x.OccurrenceDate > today)
+            .OrderBy(x => x.OccurrenceDate)
+            .ToList();
+        
+        BuildTimeSeries();
+
+        _loading = false;
+        StateHasChanged();
+    }
+
+    private void BuildTimeSeries()
+    {
+        var incomeSeries = _incomeItems.GetTimeSeries(_dateStart, _dateEnd).ToList();
+        var expenseSeries = _expenseItems.GetTimeSeries(_dateStart, _dateEnd).ToList();
+
+        _timeXAxisLabels = incomeSeries.Select(x =>
+        {
+            var startLabel = x.Item1.ToString("MMM.dd");
+            
+            if (x.Item1.Month == x.Item2.Month)
+            {
+                return $"{startLabel}-{x.Item2:dd}";
+            }
+            
+            return $"{startLabel}-{x.Item2:MMM.d}";
+        }).ToArray();
+        
+        _timeSeries =
+        [
+            new ChartSeries
+            {
+                Name = "Income",
+                Data = incomeSeries.Select(x => x.Item3).ToArray(),
+            },            
+            new ChartSeries
+            {
+                Name = "Expenses",
+                Data = expenseSeries.Select(x => x.Item3).ToArray(),
+            },
+        ];
+    }
+
+    
+    private RenderFragment RecentTransactions(IEnumerable<Finances.FinanceOccurrence> items, int count)
+        => @<MudGrid>
+               @foreach(var item in items.Take(count))
+               {
+                   <MudItem xs="12 / count">
+                       <SimpleCard Title="@item.ParentItem.Title" Lighten>
+                           <div class="d-flex align-center flex-row justify-space-between">
+                               <MudText Typo="Typo.h6"><b>@item.ParentItem.Amount.ToString("C")</b></MudText>
+                               @if (item.ParentItem.Type == FinanceItemTypes.Income)
+                               {
+                                   <MudIcon Icon="@Icons.Material.Filled.KeyboardArrowUp" Color="Color.Success"/>
+                               }
+                               else if (item.ParentItem.Type == FinanceItemTypes.Expense)
+                               {
+                                   <MudIcon Icon="@Icons.Material.Filled.KeyboardArrowDown" Color="Color.Error"/>
+                               }
+                           </div>
+                       </SimpleCard>
+                   </MudItem>
+               }
+           </MudGrid>;
+
+}
