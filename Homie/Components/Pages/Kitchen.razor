@@ -1,0 +1,102 @@
+@page "/kitchen"
+
+@inject IDbService DbService
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<PageHeader Text="Kitchen" />
+
+<MudGrid>
+    <MudItem xs="8">
+        <SimpleCard Title="Recipes" Height="100%">
+            <MudDataGrid Items="_recipes" Height="67vh" QuickFilter="QuickFilter" Elevation="0" ShowColumnOptions="false" ReadOnly="false" FixedHeader FixedFooter Dense>
+                <ToolBarContent>
+                    <MudTextField T="string" @bind-Value="_searchQuery" Label="Search positions, companies, etc..." Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.Search" Immediate/>
+                    <MudSpacer/>
+                </ToolBarContent>
+                <Columns>
+                    <PropertyColumn Property="x => x.Title" Title="Recipe" />
+                    <PropertyColumn Property="x => x.Ingredients.Distinct().Count()" Title="Ingredients" />
+                    <TemplateColumn>
+                        <CellTemplate>
+                            <MudButtonGroup OverrideStyles="false">
+                                <MudIconButton OnClick="_ => ShowEditRecipeDialog(context.Item)" Icon="@Icons.Material.Filled.Edit" Color="Color.Default" Size="Size.Small"/>
+                                <MudIconButton OnClick="_ => DeleteItem(context.Item)" Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"/>
+                            </MudButtonGroup>
+                        </CellTemplate>
+                    </TemplateColumn>
+                </Columns>
+                <PagerContent>
+                    <MudButton StartIcon="@Icons.Material.Filled.Add" Color="Color.Primary" Variant="Variant.Filled" OnClick="ShowAddRecipeDialog" FullWidth>Add Recipe</MudButton>
+                </PagerContent>
+            </MudDataGrid>
+        </SimpleCard>
+    </MudItem>
+    <MudItem xs="4">
+        
+    </MudItem>
+</MudGrid>
+
+
+@code {
+
+    private IEnumerable<Groceries.Recipe> _recipes = [];
+    
+    private string _searchQuery = string.Empty;
+
+
+    protected override Task OnInitializedAsync() => LoadDataAsync();
+
+    private async Task LoadDataAsync()
+    {
+        _recipes = await DbService.GetRecipesAsync();
+    }
+
+
+    private async Task ShowAddRecipeDialog()
+    {
+        var dialog = await DialogService.ShowAsync<AddRecipeDialog>();
+        await dialog.Result;
+        await LoadDataAsync();
+    }
+    
+    
+    private async Task ShowEditRecipeDialog(Groceries.Recipe recipe)
+    {
+        var dialog = await DialogService.ShowAsync<EditRecipeDialog>("", new DialogParameters<EditRecipeDialog>
+        {
+            { x => x.Recipe, recipe }
+        });
+        await dialog.Result;
+        await LoadDataAsync();
+    }
+
+
+    private async Task DeleteItem(Groceries.Recipe item)
+    {
+        var confirmed = await DialogService.ShowMessageBox("Confirm Deletion", $"Permanently delete {item}?", yesText: "Delete", noText: "Cancel");
+        if (!confirmed.GetValueOrDefault()) return;
+
+        try
+        {
+            await DbService.DeleteRecipeAsync(item);
+            Snackbar.Add($"{item} was successfully deleted", Severity.Success);
+        }
+        catch (Exception e)
+        {
+            Snackbar.Add($"{item} could not be deleted", Severity.Error);
+        }
+        finally
+        {
+            await LoadDataAsync();
+        }
+    }
+    
+    private bool QuickFilter(Groceries.Recipe recipe)
+    {
+        if (string.IsNullOrWhiteSpace(_searchQuery))
+            return true;
+
+        return false;
+    }
+}

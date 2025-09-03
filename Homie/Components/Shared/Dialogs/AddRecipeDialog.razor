@@ -1,0 +1,60 @@
+@namespace Homie.Components.Shared
+
+@inject IDbService DbService
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudForm @ref="_form" Spacing="3">
+            <MudTextField @bind-Value="_newItem.Title" Label="Title" Required />
+            <MultiSelectAutoComplete @bind-SelectedItems="_newItemIngredients" SearchFunc="SearchIngredients" FromStringFunc="IngredientFromString" />
+        </MudForm>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Dialog.Cancel">Cancel</MudButton>
+        <MudButton OnClick="OnAddItem" Color="Color.Primary" Variant="Variant.Filled">Add Recipe</MudButton>
+    </DialogActions>
+</MudDialog>
+
+
+@code {
+
+    [CascadingParameter]
+    private IMudDialogInstance Dialog { get; set; }
+
+    private MudForm _form;
+    private Groceries.Recipe _newItem = new();
+    private HashSet<Groceries.Ingredient> _newItemIngredients = new();
+    
+    private IEnumerable<Groceries.Ingredient> _allIngredients = [];
+    
+    private async Task OnAddItem()
+    {
+        await _form.Validate();
+        if (!_form.IsValid) return;
+
+        try
+        {
+            await DbService.AddRecipeAsync(_newItem, _newItemIngredients);
+            Snackbar.Add($"{_newItem}) was added", Severity.Success);
+            Dialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception e)
+        {
+            Snackbar.Add($"{_newItem}) could not be added", Severity.Error);
+        }
+    }
+
+
+    private async Task<IEnumerable<Groceries.Ingredient>> SearchIngredients(string? query, CancellationToken cancellationToken)
+    {
+        var results = await DbService.SearchIngredientsAsync(query ?? string.Empty, cancellationToken: cancellationToken);
+        return results.Except(_newItemIngredients);
+    }
+
+    private Groceries.Ingredient IngredientFromString(string query) => new()
+    {
+        Title = query
+    };
+
+}
