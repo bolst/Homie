@@ -1,8 +1,8 @@
-using Homie.HomeDb.Models.Bank;
+using Homie.Db.Models.Bank;
 using Homie.Interfaces;
 using Homie.Services;
 
-namespace Homie.HomeDb;
+namespace Homie.Db;
 
 public partial class HomieDbService : DapperBase, IHomieDbService
 {

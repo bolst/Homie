@@ -18,9 +18,16 @@
                      Clearable>
     </MudAutocomplete>
 
-    @foreach (var val in _selectedItems)
+    @if (SelectedContent is null)
     {
-        <MudChip T="T" Value="val" Text="@ToStringFunc(val)" OnClose="OnChipDeselect" Size="Size.Small" Style="@ChipStyleFunc(val)" Variant="Variant.Text" />
+        foreach (var val in _selectedItems)
+        {
+            <MudChip T="T" Value="val" Text="@ToStringFunc(val)" OnClose="OnChipDeselect" Size="Size.Small" Style="@ChipStyleFunc(val)" Variant="Variant.Text" />
+        }
+    }
+    else
+    {
+        @SelectedContent
     }
 </div>
 
@@ -40,6 +47,9 @@
 
     [Parameter]
     public Func<T?, string> ToStringFunc { get; set; } = x => x?.ToString() ?? string.Empty;
+    
+    [Parameter]
+    public RenderFragment SelectedContent { get; set; }
 
 
     /// <summary>

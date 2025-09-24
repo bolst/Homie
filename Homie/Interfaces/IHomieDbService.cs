@@ -1,8 +1,8 @@
 namespace Homie.Interfaces;
 
-using HomeDb.Models.Bank;
+using Db.Models.Bank;
 
-public interface IHomeDbService
+public interface IHomieDbService
 {
     Task<IEnumerable<BankCharge>> GetBankChargesAsync(DateTime dateStart, DateTime dateEnd);
 }

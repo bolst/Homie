@@ -1,5 +1,7 @@
+using Blazored.LocalStorage;
 using Homie.Components;
 using Homie.Interfaces;
+using Homie.Db;
 using Homie.Services;
 using MudBlazor;
 using MudBlazor.Services;
@@ -17,12 +19,21 @@ MudGlobal.InputDefaults.Margin = Margin.Dense;
 MudGlobal.Rounded = true;
 MudGlobal.GridDefaults.Spacing = 3;
 
-// Add DbService
-builder.Services.AddScoped<IDbService, DbService>(sp =>
+// Add Local storage
+builder.Services.AddBlazoredLocalStorage();
+builder.Services.AddDataProtection();
+
+// Add BrowserDateTimeService
+builder.Services.AddScoped<IBrowserDateTimeService, BrowserDateTimeService>();
+
+// Add Db
+builder.Services.AddScoped<IHomieDbService, HomieDbService>(sp =>
 {
     var connectionString = Environment.GetEnvironmentVariable("ConnectionString__Homie");
-    return new DbService(connectionString);
+    return new HomieDbService(connectionString);
 });
+
+
 
 var app = builder.Build();
 

@@ -1,0 +1,228 @@
+@page "/"
+
+@using System.Text.Json
+@using Homie.Db.Models.Bank
+@using Microsoft.AspNetCore.DataProtection
+
+@inject IHomieDbService HomieDbService
+@inject ILocalStorageService LocalStorage
+@inject IBrowserDateTimeService BrowserDateTimeService
+
+<div class="d-flex flex-row align-center justify-space-between flex-wrap">
+    <PageHeader Text="Welcome back, Nic" PageTitle="Homie" />
+    <div class="d-flex flex-row align-center">
+        <MudButtonGroup OverrideStyles="false">
+            <MudTooltip Text="Today" Placement="Placement.Bottom" Arrow>
+                <MudIconButton OnClick="SetTodayAsync" Icon="@Icons.Material.Filled.Today" Size="Size.Small"/>
+            </MudTooltip>
+            <MudTooltip Text="This Bi-week" Placement="Placement.Bottom" Arrow>
+                <MudIconButton OnClick="SetThisBiWeekAsync" Icon="@Icons.Material.Filled.ViewWeek" Size="Size.Small"/>
+            </MudTooltip>
+        </MudButtonGroup>
+        <MudDateRangePicker DateRange="_viewOptions.DateRange" DateRangeChanged="DateRangeChanged" Label="Range" IconSize="Size.Small" Editable />
+    </div>
+</div>
+
+@if (_loading)
+{
+    <MudGrid>
+        <MudItem Class="d-flex align-center flex-column justify-space-between" xs="4">
+            <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="39vh" Width="100%" />
+            <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="39vh" Width="100%" />
+        </MudItem>
+        <MudItem xs="8">
+            <MudSkeleton SkeletonType="SkeletonType.Rectangle" Height="80vh" Width="100%" />
+        </MudItem>
+    </MudGrid>
+}
+else
+{
+    <MudGrid>
+        <MudItem Class="d-flex align-center flex-column justify-space-between" xs="4">
+            <SimpleCard Title="Total" Height="39vh">
+                <MudChart
+                    Class="pa-4"
+                    ChartType="ChartType.Donut"
+                    LegendPosition="Position.Right"
+                    Width="100%"
+                    Height="100%"
+                    InputData="_bankCharges.Select(x => x.PayeeTotal).ToArray()"
+                    InputLabels="_bankCharges.Select(x => x.Payee).ToArray()"
+                    ChartOptions="_chartOptions">
+                    <CustomGraphics>
+                        <text fill="white" x="50%" y="40%" dominant-baseline="middle" text-anchor="middle" font-size="15">Total</text>
+                        <text fill="white" x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-size="30">@_bankCharges.Sum(x => x.PayeeTotal).ToString("C")</text>
+                    </CustomGraphics>
+                </MudChart>
+            </SimpleCard>
+            <SimpleCard Title="" Height="39vh">
+            </SimpleCard>
+        </MudItem>
+        <MudItem xs="8">
+            <MudDataGrid Items="_bankCharges" Height="80vh" Breakpoint="Breakpoint.None" ShowColumnOptions="false" Elevation="3" FixedHeader FixedFooter>
+                <Columns>
+                    <PropertyColumn Property="x => x.Value" Title="Amount" Format="C">
+                        <FooterTemplate>
+                            <MudChip T="string" Text="@($"{context.Items.Count()} ITEMS")" Color="Color.Primary" Label="true" />
+                        </FooterTemplate>
+                    </PropertyColumn>
+                    <PropertyColumn Property="x => x.Payee" Title="Payee" />
+                    <PropertyColumn Property="x => TimeZoneInfo.ConvertTimeFromUtc(x.EmailDate, _timeZone).ToShortDateString()" Title="Date" />
+                    <PropertyColumn Property="x => TimeZoneInfo.ConvertTimeFromUtc(x.EmailDate, _timeZone).ToShortTimeString()" Title="Time" />
+                </Columns>
+            </MudDataGrid>
+        </MudItem>
+    </MudGrid>
+}
+
+
+@code {
+
+    private readonly IDataProtector _protector = DataProtectionProvider.Create("homie").CreateProtector("dash_view_options");
+    private const string ViewOptionsLocalKey = "view_options";
+    
+    private bool _loading;
+    private readonly ChartOptions _chartOptions = new()
+    {
+        ShowLegend = false,
+    };
+    
+    private HomeViewOptions _viewOptions = HomeViewOptions.Default;
+
+    private TimeZoneInfo _timeZone = TimeZoneInfo.Utc;
+    private DateRange _localTodayRange = new(DateTime.UtcNow.Date, DateTime.UtcNow.Date.AddDays(1));
+    private DateRange _localBiWeekRange = new(DateTime.UtcNow.Date.AddDays(-14), DateTime.UtcNow.Date);
+    
+    private IEnumerable<BankCharge> _bankCharges = [];
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        _loading = true;
+        StateHasChanged();
+
+        _timeZone = await BrowserDateTimeService.GetTimeZoneInfoAsync();
+        
+        // set fixed date ranges to local timezone
+        {
+            var now = await BrowserDateTimeService.GetNowAsync();
+            var today = now.Date;
+            var tomorrow = today.AddDays(1);
+            var twoWeeksAgo = today.AddDays(-14);
+
+            _localTodayRange = new DateRange(today, tomorrow);
+            _localBiWeekRange = new DateRange(twoWeeksAgo, today);
+        }
+
+        _viewOptions = await GetViewOptionsAsync();
+        
+        var start = TimeZoneInfo.ConvertTimeToUtc(_viewOptions.DateStart, _timeZone);
+        var end = TimeZoneInfo.ConvertTimeToUtc(_viewOptions.DateEnd, _timeZone);
+        _bankCharges = await HomieDbService.GetBankChargesAsync(start, end);
+
+        _loading = false;
+        StateHasChanged();
+    }
+    
+
+    /// <summary>
+    /// Updates UI for a changed date range
+    /// </summary>
+    /// <param name="dateRange">New date range, expected in local TZ</param>
+    private async Task DateRangeChanged(DateRange dateRange)
+    {
+        if (dateRange == _viewOptions.DateRange)
+            return;
+
+        var result = Task.Run(async () =>
+        {
+            _viewOptions.DateRange = dateRange;
+            
+            var start = TimeZoneInfo.ConvertTimeToUtc(_viewOptions.DateStart, _timeZone);
+            var end = TimeZoneInfo.ConvertTimeToUtc(_viewOptions.DateEnd, _timeZone);
+            var data = await HomieDbService.GetBankChargesAsync(start, end);
+            
+            await PersistViewOptionsAsync();
+            
+            return data;
+        });
+
+        await Task.Delay(50);
+        
+        if (result is { IsCompleted: false, IsFaulted: false })
+        {
+            _loading = true;
+            await InvokeAsync(StateHasChanged);
+
+            await result;
+
+            _loading = false;
+        }
+        
+        _bankCharges = result.Result;
+        await InvokeAsync(StateHasChanged);
+    }
+    
+    
+    private async Task<HomeViewOptions> GetViewOptionsAsync()
+    {
+        try
+        {
+            var protectedData = await LocalStorage.GetItemAsync<string>(ViewOptionsLocalKey);
+            if (protectedData is not null)
+            {
+                var strData = _protector.Unprotect(protectedData);
+                var options = JsonSerializer.Deserialize<HomeViewOptions>(strData);
+                if (options is not null)
+                    return options;
+            }
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+        }
+        
+        return HomeViewOptions.Default with
+        {
+            DateRange = _localTodayRange,
+        };
+    }
+    
+
+    private async Task PersistViewOptionsAsync()
+    {
+        var strData = JsonSerializer.Serialize(_viewOptions);
+        var protectedData = _protector.Protect(strData);
+        await LocalStorage.SetItemAsync(ViewOptionsLocalKey, protectedData);
+    }
+
+
+    private Task SetTodayAsync() => DateRangeChanged(_localTodayRange);
+    private Task SetThisBiWeekAsync() => DateRangeChanged(_localBiWeekRange);
+
+
+    public record HomeViewOptions
+    {
+        public static readonly HomeViewOptions Default = new()
+        {
+            DateStart = DateTime.Now.Date,
+            DateEnd = DateTime.Now.Date.AddDays(1),
+        };
+
+        public required DateTime DateStart { get; set; }
+        public required DateTime DateEnd { get; set; }
+
+        public DateRange DateRange
+        {
+            get => new(DateStart, DateEnd);
+            set
+            {
+                DateStart = value.Start ?? DateStart;
+                DateEnd = value.End ?? DateEnd;
+            }
+        }
+    }
+
+}

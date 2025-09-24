@@ -1,4 +1,4 @@
-namespace Homie.HomeDb.Models.Bank;
+namespace Homie.Db.Models.Bank;
 
 public sealed record BankCharge
 {
